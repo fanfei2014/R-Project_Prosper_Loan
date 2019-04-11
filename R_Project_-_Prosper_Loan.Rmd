@@ -1,0 +1,721 @@
+````markdown
+---
+title: "Loan Default Exploration Analysis by Fan Fei"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+library(ggplot2)
+library(dplyr)
+
+
+```
+
+
+```{r echo=FALSE, Load_the_Data}
+# Load the loan data and the relevant variable definitions
+
+loan <- read.csv('prosperLoanData.csv')
+definition <- read.csv('Prosper Loan Data - Variable Definitions - Sheet1.csv')
+
+```
+
+## Dataset Introduction
+This loan data set contains 113,937 loans with 81 variables on each loan,
+including loan amount, interest rate, current loan status, borrower income, 
+borrower employment status, borrower credit history, the latest payment
+information, and other relevant factors.
+
+This analysis will explore the relationship between loan default rate and some 
+key attributes.
+
+## Univariate Plots & Analysis
+Among all the variables below, firstly I will do some preliminary exploration of
+the dataset. 
+
+```{r echo=FALSE, Univariate_Plots}
+
+head(loan)
+summary(loan)
+str(loan)
+
+```
+
+This dataset consists of 81 variables with 113937 observations.
+
+```{r echo=FALSE, Loan_Status}
+
+# Check loan status distribution and default rate
+summary(loan$LoanStatus)
+
+LoanStatuspie <- loan %>% 
+  group_by(LoanStatus) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(LoanStatus))
+ggplot(data = LoanStatuspie) +
+  geom_bar(aes(x = "", y=percentage, fill = LoanStatus), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE)
+
+```
+
+Among all the loan status, 'Current' status occpuies almost a half. 'Completed'
+status takes the second position, 33.4%. While 4.4% 'Defaulted' and 10.5% 
+'Charged off' loan status being categorized into default rate calcuation, in
+total of 15% approximately.
+
+```{r echo=FALSE, Categorize_Delinquency}
+
+Delinquentloan <- subset(loan, !is.na(CurrentDelinquencies) & !is.na(DelinquenciesLast7Years))
+  Delinquentloan$CurrentDelinquencies[Delinquentloan$CurrentDelinquencies != 0 ] <- " Current Delinquent"
+  Delinquentloan$CurrentDelinquencies[Delinquentloan$CurrentDelinquencies == 0 ] <- "Current Non-Delinquent"
+  Delinquentloan$DelinquenciesLast7Years[Delinquentloan$DelinquenciesLast7Years != 0 ] <- " Past 7 year Delinquent"
+  Delinquentloan$DelinquenciesLast7Years[Delinquentloan$DelinquenciesLast7Years == 0 ] <- " Past 7 year Non-Delinquent"
+
+```
+
+The primary purpose of this analysis is to explore the delinquency related 
+factors. For calculation convenience, I firstly categorize the
+"CurrentDelinquencies" into "Current Delinquent" and "Current Non-Delinquent"
+through non-zero values and zero value. Same as DelinquenciesLast7Years. Later,
+most analysis will use Delinquentloan as dataset.
+
+```{r echo=FALSE, Current_Delinquency_Distribution}
+    
+Delinquenciespie <- Delinquentloan %>% 
+  group_by(CurrentDelinquencies) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(CurrentDelinquencies))
+ggplot(data = Delinquenciespie) +
+  geom_bar(aes(x = "", y = percentage, fill = CurrentDelinquencies), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE)
+
+```
+
+```{r echo=FALSE, DelinquenciesLast7Years_Distribution}
+
+Delinquenciespie7 <- Delinquentloan %>% 
+  group_by(DelinquenciesLast7Years) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(DelinquenciesLast7Years))
+ggplot(data = Delinquenciespie7) +
+  geom_bar(aes(x = "", y = percentage, fill = DelinquenciesLast7Years), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE)
+
+```
+
+Comparing CurrentDelinquencies and Last7YearDelinquencies, nearly 20% loans are 
+currently in the delinquent status and there are 32% loans were recorded 
+defaulted at least once in the past 7 years.
+
+```{r echo=FALSE, Income_Distribution}
+
+# reorder income range from low to high of StatedMonthlyIncome
+loan$IncomeRange = with(loan, reorder(IncomeRange,StatedMonthlyIncome,mean)) 
+levels(loan$IncomeRange)
+
+summary(loan$IncomeRange)
+
+Incomepie <- loan %>% 
+  group_by(IncomeRange) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(IncomeRange))
+ggplot(data = Incomepie) +
+  geom_bar(aes(x = "", y=percentage, fill = IncomeRange), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE) + 
+  scale_fill_brewer()
+
+```
+
+Income range include both quantitative and descriptive values.Thus,firstly I
+reorder the labels based on the mean of a quantitative factor, the Stated 
+Monthly Income. Then, people in the "Not Employed" range is the second lowest
+but people in the "Not displayed" range may miss values only. 
+Based on the pie chart, people with annual income in the range of
+25,000 to 75,000 are around 55% of total borrowers. One thing to notice is
+that people with higher income (> 75,000) occupies 30% of total borrowers.
+
+```{r echo=FALSE, Monthly_Loan_Payment}
+
+# Check monthly loan payment distribution
+ggplot(data = loan, aes(x = MonthlyLoanPayment)) + 
+  geom_histogram(binwidth = 10) +
+  scale_x_continuous(limits = c(0, 1000))
+
+# Group monthly loan payment into four buckets and check the percentage distribution
+loan$MonthlyLoanPayment.bucket <- cut(loan$MonthlyLoanPayment, c(0,250,500,750,1000))
+
+table(loan$MonthlyLoanPayment.bucket, useNA = 'ifany')
+
+Monthlyloanpaymentpie <- loan %>% 
+  group_by(MonthlyLoanPayment.bucket) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(MonthlyLoanPayment.bucket))
+ggplot(data = Monthlyloanpaymentpie) +
+  geom_bar(aes(x = "", y=percentage, fill = MonthlyLoanPayment.bucket), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE) +
+  scale_fill_brewer()
+
+```
+
+The distribution of monthly loan payment is shown as right-tailed with over 50%
+of loans less than 250. Nearly 90% of loans fall into the range less than 500.
+
+
+# Bivariate Plots Section
+
+This section will firstly use chi-square test to explore if some quantitative
+variables are related to delinquency, using the dataset "DelinquentLoan".
+The quantitative factors include: 
+
+BorrowerRate 
+EmploymentStatusDuration 
+CreditScoreRangeLower 
+CurrentCreditLines 
+InquiriesLast6Months 
+RevolvingCreditBalance 
+BankcardUtilization 
+DebtToIncomeRatio 
+StatedMonthlyIncome 
+MonthlyLoanPayment 
+
+Some quantitative factors may have overlaps. For example, CreditScoreRangeLower
+and CreditScoreRangeHigher would reflect a similar relationship to Current
+Delinquency but with a slightly different x-scale. Thus, only one of these two
+would be used to test if such a relationship does exist.
+
+```{r echo=FALSE, Chisquare_Test1}
+
+readborrowerrate <- table(Delinquentloan$BorrowerRate, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readborrowerrate,1),2),2)
+chisq.test(readborrowerrate)
+
+```
+
+```{r echo=FALSE, Chisquare_Test2}
+
+reademployment <- table(Delinquentloan$EmploymentStatusDuration, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(reademployment,1),2),2)
+chisq.test(reademployment)
+
+```
+
+```{r echo=FALSE, Chisquare_Test3}
+
+readcreditscore <- table(Delinquentloan$CreditScoreRangeLower, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readcreditscore,1),2),2)
+chisq.test(readcreditscore)
+
+```
+
+```{r echo=FALSE, Chisquare_Test4}
+
+readcreditlines <- table(Delinquentloan$CurrentCreditLines, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readcreditlines,1),2),2)
+chisq.test(readcreditlines)
+```
+
+```{r echo=FALSE, Chisquare_Test5}
+
+readinquiries <- table(Delinquentloan$InquiriesLast6Months, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readinquiries,1),2),2)
+chisq.test(readinquiries)
+
+```
+
+```{r echo=FALSE, Chisquare_Test6}
+
+readcreditbalance <- table(Delinquentloan$RevolvingCreditBalance, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readcreditbalance,1),2),2)
+chisq.test(readcreditbalance)
+
+```
+
+```{r echo=FALSE, Chisquare_Test7}
+
+readutilization <- table(Delinquentloan$BankcardUtilization, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readutilization,1),2),2)
+chisq.test(readutilization)
+
+```
+
+```{r echo=FALSE, Chisquare_Test8}
+
+readdebttoincomeratio <- table(Delinquentloan$DebtToIncomeRatio, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readdebttoincomeratio,1),2),2)
+chisq.test(readdebttoincomeratio)
+
+```
+
+```{r echo=FALSE, Chisquare_Test9}
+
+readincome <- table(Delinquentloan$StatedMonthlyIncome, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readincome,1),2),2)
+chisq.test(readincome)
+
+```
+
+```{r echo=FALSE, Chisquare_Test10}
+
+readloanpayment <- table(Delinquentloan$MonthlyLoanPayment, Delinquentloan$CurrentDelinquencies)
+addmargins(round(prop.table(readloanpayment,1),2),2)
+chisq.test(readloanpayment)
+
+```
+
+Based on all 10 chi-square test results, most factors have p-values < 0.05,
+excluding EmploymentStatusDuration and RevolvingCreditBalance. Therefore, the
+following plot analysis will focus on the factors with acceptable p-values,
+which I can reject the null hypothesis that the factor is independent of the
+delinquency.
+
+BorrowerRate - yes plot - not clear
+EmploymentStatusDuration - no
+CreditScoreRangeLower -yes plot - negative
+CurrentCreditLines - yes plot - negative
+InquiriesLast6Months - yes plot - positive
+RevolvingCreditBalance - no
+BankcardUtilization - yes plot - flat within 1.0 and positive after 1.0
+DebtToIncomeRatio - yes plot - overall positive
+StatedMonthlyIncome - yes plot - overall negative
+MonthlyLoanPayment - yes plot - overall negative
+
+```{r echo=FALSE, BorrowerRate_Delinquency}
+
+ggplot(data = loan, aes(x = BorrowerRate, y = CurrentDelinquencies)) +
+  geom_line(na.rm = TRUE) +
+  scale_x_continuous(limits = c(0.05, 0.30), breaks = seq(0.05, 0.30, 0.05))
+
+Delinquentloan$BorrowerRate.bucket <- cut(Delinquentloan$BorrowerRate, c(0.05,0.1,0.15,0.20,0.25,0.30, 0.35))
+
+table(Delinquentloan$BorrowerRate.bucket, useNA = 'ifany')
+
+BorrowerRateDelinquency <- Delinquentloan %>% 
+  group_by(BorrowerRate.bucket,CurrentDelinquencies) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(BorrowerRate.bucket))
+
+ggplot(data = BorrowerRateDelinquency, aes(x = BorrowerRate.bucket, y = n, colour = CurrentDelinquencies)) +       
+  geom_line(aes(group = CurrentDelinquencies)) +
+  scale_y_continuous(name = "Count", breaks = seq(0, 40000, 5000))
+
+```
+
+```{r echo=FALSE, CreditLines_Delinquency}
+
+ggplot(data = Delinquentloan, aes(x = CurrentCreditLines, fill = CurrentDelinquencies)) +
+  geom_histogram(stat = 'count', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0, 30), breaks = seq(0, 30, 2)) +
+  scale_y_continuous(name = "Count")
+
+```
+
+```{r echo=FALSE, CreditScore_CurrentDelinquency}
+
+ggplot(data = Delinquentloan, aes(x = CreditScoreRangeLower, fill = CurrentDelinquencies)) +
+  geom_histogram(stat = 'count', na.rm = TRUE, binwidth = 10) +
+  scale_x_continuous(limits = c(500, 850), breaks = seq(500, 850, 50)) +
+  scale_y_continuous(name = "Count")
+
+```
+
+```{r echo=FALSE, CreditScore_Last7YearDelinquency}
+
+ggplot(data = Delinquentloan, aes(x = CreditScoreRangeLower, fill = DelinquenciesLast7Years)) +
+  geom_histogram(stat = 'count', na.rm = TRUE, binwidth = 10) +
+  scale_x_continuous(limits = c(500, 850), breaks = seq(500, 850, 50)) +
+  scale_y_continuous(name = "Count")
+
+```
+
+```{r echo=FALSE, Inquiries_CurrentDelinquency}
+
+ggplot(data = Delinquentloan, aes(x = InquiriesLast6Months, fill = CurrentDelinquencies)) +
+  geom_histogram(stat = 'count', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0,10), breaks = seq(0, 10, 1)) +
+  scale_y_continuous(name = "Count", limits = c(0, 30000))
+
+```
+
+```{r echo=FALSE, Inquiries_Last7YearsDelinquency}
+
+ggplot(data = Delinquentloan, aes(x = TotalInquiries, fill = DelinquenciesLast7Years)) +
+  geom_histogram(stat = 'count', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0,20), breaks = seq(0, 20, 1)) +
+  scale_y_continuous(name = "Count")
+
+```
+
+```{r echo=FALSE, BankcardUtilization_Delinquency}
+
+ggplot(data = Delinquentloan, aes(x = BankcardUtilization, colour = CurrentDelinquencies)) +
+        geom_line(stat = 'count', na.rm = TRUE) +
+        scale_x_continuous(limits = c(0,2), breaks = seq(0, 2, 0.1)) +
+        scale_y_continuous(limits = c(0,2000), breaks = seq(0, 1800, 200), name = "Count")
+
+```
+
+```{r echo=FALSE, DebttoIncomeRatio_Delinquency}
+
+ggplot(data = Delinquentloan, aes(x = DebtToIncomeRatio, colour = CurrentDelinquencies)) +
+        geom_line(stat = 'count', na.rm = TRUE) +
+        scale_x_continuous(limits = c(0,0.9), breaks = seq(0, 0.9, 0.1)) + 
+        scale_y_continuous(limits = c(0,3000), name = "Count")
+
+```
+
+```{r echo=FALSE, StatedMonthlyIncome_Delinquency}
+
+IncomeDelinquency <- Delinquentloan %>% 
+  group_by(IncomeRange, CurrentDelinquencies) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(IncomeRange))
+
+IncomeRangeOrder = factor(IncomeDelinquency$IncomeRange, levels=c("$0","Not employed","$1-24,999","$25,000-49,999","$50,000-74,999","$75,000-99,999","$100,000+","Not Displayed"))
+
+ggplot(data = IncomeDelinquency, aes(x = IncomeRangeOrder, y = n, colour = CurrentDelinquencies)) +
+  geom_line(aes(group = CurrentDelinquencies)) +
+  scale_y_continuous(name = "Count", breaks = seq(0, 25000, 2500)) +
+  coord_flip()
+
+```
+
+```{r echo=FALSE, MonthlyLoanPayment_Delinquency}
+
+Delinquentloan$MonthlyLoanPayment.bucket <- cut(Delinquentloan$MonthlyLoanPayment, c(0,250,500,750,1000))
+
+table(Delinquentloan$MonthlyLoanPayment.bucket, useNA = 'ifany')
+
+MonthlyloanpaymentDelinquency <- Delinquentloan %>% 
+  group_by(MonthlyLoanPayment.bucket,CurrentDelinquencies) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(desc(MonthlyLoanPayment.bucket))
+
+ggplot(data = MonthlyloanpaymentDelinquency, aes(x = MonthlyLoanPayment.bucket, y = n, colour = CurrentDelinquencies)) +       
+  geom_line(aes(group = CurrentDelinquencies)) +
+  scale_y_continuous(name = "Count", breaks = seq(0, 40000, 5000)) +
+  coord_flip()
+
+```
+
+# Bivariate Analysis
+
+Based on all the eight plots above, they somewhat demonstrate relationships with 
+current delinquencies/ past 7 years delinquencies times.
+
+First of all, the three discrete variables, credit lines, credit score, and 
+inquirie times, I used histogram graph to show their relationship to current
+delinquencies times. 
+For current credit lines, the more credit lines people have, the less likely 
+they would have delinquent loans. With only 1 credit line, the current 
+delinquent ratio is nearly 50% of total observations. Bwtween 5-10 credit lines,
+the absolute value of observations with delinquent loans approximately maintain 
+at the same level while total observations increase. After 10 credit lines, the 
+absolute value of observations with delinquent loans decrease while total 
+observations decrease also. Overall, the delinquency ratio with credit lines 
+variable has a negative relationship.
+Credit Score vs. Current Delinquencies and vs. Delinquencies Last 7 Years show
+a similar pattern. The higher the credit score is, the lower the delinquency
+ratio is. When comparing the two patterns, the 50% ratio line in Credit Score vs
+Current Delinquencies is around score at 600. While the 50% ratio line in
+Delinquencies Last 7 Years is around score at 650. The delinquency ratio with 
+credit score this variable has a negative relationship.
+For Inquires vs. Delinquencies, I also employ current and long-term two graphs.
+The long-term one (Total Inquiries vs.Delinquencies Last 7 Years) shows a more 
+clear relationship.The more inquires people have, they are more likely to have
+delinquent loans. The delinquency ratio with total inquires has a positive 
+relationship.
+
+Second part is the five continuous variables, borrower rate, bankcard 
+utilization, debt-to-income ratio, stated monthly income, and monthly payment.
+Since bankcard utilization and debt-to-income ratio fall in a relatively small 
+range, around 0 to 2, with 201 and 433 difference values respectively, for these
+two I employ a line graph to show the relationship between the utilization ratio
+(debt-to-income-ratio) and delinquency ratio. However, both graphs cannot 
+demonstrate clear relationships. 
+So, looking back to the chi-test table, the bankcard utilization has a flat 
+relationship (around 0.2) with delinquency ratio when the utilization is less 
+than 1. When bankcard utiliation is more than 1 (meaning people overdraft), the 
+delinquency ratio quickly bounce to nearly 0.4 and increase to 1.0 when 
+utilization is more than 1.1, which is shown as overlapped lines in the graph.
+Also, the debt-to-income ratio vs. delinquency ratio chi-test table tells more
+information than the graph. When debt-to-income ratio is less than 1, overall
+the delinquency ratio shows a decreasing trend. From 0 to 0.1, the delinquency
+ratio is around 0.3 to 0.5. From 0.1 to 0.2, the delinquency ratio is between
+0.2 and 0.3. From 0.2 to 0.7, the delinquency ratio is maintained below 0.2.
+From 0.7 to 1.0, the ratio increases a little above 0.2. 
+Another three variables, borrower rate, monthly income, and loan payment have 
+2280, 26870, and 46778 different values, respectively. Thus, I choose to 
+transfer them into categorical variables. I use ordered annual income range to 
+replace stated monthly income and create borrower rate and loan payment bucket. 
+For income range variable, without zero values and not employment observations, 
+the overall trend is with income up, the delinquency ratio is decreasing. When 
+income range is in between 1 and 24999, the ratio is about 23%. When income 
+range is between 25000 and 49999, the ratio is about 27%. In the next income 
+ranges, it decreases to about 24%, 22%, and 16.6%, respectively.
+For monthly loan payment, the trend is more clear with only four categories. The
+more monthly loan payment people need to pay, they would be less likely to have
+delinquent loans. With monthly payment bucket under 250, 250 to 500, 500 to 750,
+and 750+, the delinquency ratio decreases from about 33.3% to 16% to 12.5% to 0.
+For borrower rate, the delinquency ratio is increasing with higher borrower rate
+provided. When borrower rate is less than 0.1, the delinquency ratio is lower 
+than the overall 20.6% current delinquencies ratio. Then it gradually increases
+to 30% when borrower rate goes above 0.3.
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, CreditScore_CreditLines_Delinquencies}
+
+ggplot(aes(x = CreditScoreRangeLower, y = CurrentCreditLines, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_point(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(500, 850), breaks = seq(500, 850, 50)) +
+  scale_y_continuous(limits = c(0,30), breaks = seq(0, 30, 2))
+
+```
+
+```{r echo=FALSE, CreditScore_IncomeRange_Delinquencies}
+
+ggplot(aes(x = CreditScoreRangeLower, y = IncomeRange, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_jitter(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(500, 850), breaks = seq(500, 850, 50))
+
+```
+
+```{r echo=FALSE, LoanPayment_IncomeRange_Delinquencies}
+
+ggplot(aes(x = MonthlyLoanPayment, y = IncomeRange, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_jitter(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0, 1000), breaks = seq(0, 1000, 250))
+
+```
+
+```{r echo=FALSE, BorrowerRate_DebttoIncomeRatio_Delinquencies}
+
+ggplot(aes(x = BorrowerRate, y = DebtToIncomeRatio, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_point(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_y_continuous(limits = c(0,0.9), breaks = seq(0, 0.9, 0.1))
+
+```
+
+```{r echo=FALSE, BankcardUtilization_CreditScore_Delinquencies}
+
+ggplot(aes(x = BankcardUtilization, y = CreditScoreRangeLower, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_point(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0, 2), breaks = seq(0, 2, 0.1)) +
+  scale_y_continuous(limits = c(500, 850), breaks = seq(500, 850, 20))
+
+```
+
+# Multivariate Analysis
+
+Based on the five graphs above among two variables and the delinquency ratio,
+most relationships are aligned with the bivariate analysis. For example, the 
+multivariate plot shows Credit Score vs. Credit Lines vs. Delinquencies have
+most delinquent loans on the bottom left and least delinquent loans on the upper
+right corner, which is consistent with the relationships found in the bivariate
+part, the more credit lines and higher credit score people have, they are less
+likely to have delinquent loans. ALso, the multivariate plot showing Borrower 
+Rate vs. Debt-to-Income Ratio vs. Delinquencies have most delinquent loans on 
+the bottom right corner and least delinquent loans on the upper left. It is also
+consistent with the observation in the bivariate analysis, the delinquency ratio
+has a decreasing trend when debt-to-income increasing. While the Borrower Rate 
+bivariate analysis with delinquencies ratio shows a positive relationship. When 
+borrower rate is increasing, the delinquent loans ratio is also increasing.
+One interesting relationship found in the 2nd and 3rd graph is about the income
+range. Though the bivariate plot already demonstrates that when income as "Not
+Displayed", the loan default ratio is nearly 50%; the multivariate graph with
+monthly loan payment/credit score make it more obvious. The multivariate plot
+showing Loan Payment vs. Income Range vs. Delinquencies have most delinquent 
+loans concentrated within the "Not Displayed" bracket. 
+Another interesting finding is in the 5th graph. There is an area with fewer
+observations than other areas. When credit score less than 590 and bank card 
+utilization less than 0.5, non-delinquent loans are less than, or at most equal 
+to, delinquent loans. Compared to the overall 20% current delinquency ratio,
+this area represents a delinquency ratio at least 50%, which also means people
+with bank card usage less than 0.5 are less likely to have low credit score,
+like < 600. 
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+    
+Delinquenciespie <- Delinquentloan %>% 
+  group_by(CurrentDelinquencies) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(percentage =`n`/sum(`n`)) %>% 
+  arrange(desc(CurrentDelinquencies))
+ggplot(data = Delinquenciespie) +
+  geom_bar(aes(x = "", y = percentage, fill = CurrentDelinquencies), stat="identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(x = "", y = cumsum(percentage) - percentage/2, label=scales::percent(percentage)), angle = 45, check_overlap = TRUE) +
+  ggtitle("Current Delinquency Ratio")
+
+```
+
+### Description One
+This loan dataset contains 113,937 loans with 81 variables on each loan,
+including loan amount, interest rate, current loan status, borrower income, 
+borrower employment status, borrower credit history, the latest payment
+information, and other relevant factors. The most important aspect for loan
+analysis is to find out the factors that will contribute to loan delinquencies. 
+In the dataset, there are three variables related to loan delinquencies, Current
+Delinquencies, Amount Delinquent, and Delinquencies Last 7 Years. All of these 
+three variables are numerical data. However, after looking at the dataset and 
+categorizing the values of "CurrentDelinquencies" into Current Delinquent (non-
+zero values) and Current Non-Delinquent (zero values), the "Current Delinquency
+Ratio" pie chart shows only 20% of these loans are non-zero values, 'Current
+Delinquent'. Similar result for the Delinquencies Last 7 Years, 32.3%. 
+Considering most dependable variables (CurrentDelinquencies / DelinquenciesLast7
+years) have zero values, this exploration analysis uses the transformed 
+categorical value of "CurrentDelinquencies", rather than the original numerical 
+value in the dataset, to explore the relationships between other factors and the
+current delinquency ratio. 
+
+### Plot Two
+```{r echo=FALSE, Plot_Two_CreditScore}
+
+ggplot(aes(x = CreditScoreRangeLower, y = IncomeRange, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_jitter(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(500, 850), breaks = seq(500, 850, 50)) + 
+  ggtitle("Credit Score vs. Income Range vs. Delinquencies")
+
+```
+
+```{r echo=FALSE, Plot_Two_LoanPayment}
+
+ggplot(aes(x = MonthlyLoanPayment, y = IncomeRange, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_jitter(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0, 1000), breaks = seq(0, 1000, 250)) +
+  ggtitle("Loan Payment vs. Income Range vs. Delinquencies")
+
+```
+
+### Description Two
+Credit Score and Income Range are two categorical variables with chi-test shown
+some relationships with current delinquencies. Combining these two variables
+into one jitter point graph, there are some observations found in addition to 
+the relationships found in the two bivariate plots. 
+Credit Score, individually, has a negative relationship with current delinquency
+ratio. Income Range, individually, shows an overall negative trend with current 
+delinquency ratio, also.
+The combined plot has two interesting blocks. First of all, Credit Score of 600
+is a dividing line that roughly seperates left side with more delinquent loans
+than non-delinquent and right side with more non-delinquent loans than defaulted
+loans. The bivariate histogram between Credit Score and Current Delinquencies
+also indicates this 50% dividing line with more orange area than green area on
+the left side bars of credit score 600 and more green area than orange area on
+the right side bars of credit score 600.
+Secondly, the block within "Not Displayed" Income Range and Credit Score less 
+than 600 has the most concentrated current delinquencies. Such a concentration
+is more obvious in Loan Payment vs. Income Range vs. Delinquencies graph, the
+block within "Not Displayed" Income Range and Loan Payment between 0 and 250.
+The similarity is the "Not Displayed" Income Range. The bivariate plot
+between Income Range and Current Delinquencies has Current Delinquent and 
+Current Non-Delinquent crossed at "Not Displayed", meaning a 50% dividing line.
+Therefore, credit score of 600 and providable valid income data are two metrics
+in deciding the approval of loans.
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+
+ggplot(aes(x = BankcardUtilization, y = CreditScoreRangeLower, color = CurrentDelinquencies), data = Delinquentloan) + 
+  geom_point(alpha = 1, size = 1, position = 'jitter', na.rm = TRUE) +
+  scale_x_continuous(limits = c(0, 2), breaks = seq(0, 2, 0.1)) +
+  scale_y_continuous(limits = c(500, 850), breaks = seq(500, 850, 20)) +
+  ggtitle("Card Utilization vs. Credit Score vs. Delinquencies")
+
+```
+
+### Description Three
+In addition to the relationships between these variables and loan delinquency
+ratio, the relationships between two independent variables are important, also.
+In this plot showing Card Utilization vs. Credit Score vs. Delinquencies, there 
+is an area with much fewer observations than other areas, the credit score less 
+than 590 and bank card utilization less than 0.5. With more orange jitter points
+than green ones, the delinquency ratio in this area is more than 50% dividing 
+line. Also, this blank area indicates people are likely to have credit score 
+more than 590 with bank card usage less than 0.5. Another dividing line in this 
+plot is bankcardutilization of 1.1. Similar as the bivariate plot between 
+BankcardUtilization and Current Delinquencies has two lines sharply decreasing
+and closely to be overlapped when bankcardutilization more than 1.1; the orange
+jitter points are more than green points, especially in the lower credit score 
+range, and the total observations are much fewer than the left side of 1.1.
+
+------
+  
+# Reflection
+
+Overall, this Loan Default Exploration finds out some variables related to the
+loan default/delinquencies. The chi-tests, bivariate analysis, and multivariate
+plots shows overall relationships as followes:
+
+BorrowerRate - overall positive
+CreditScoreRangeLower - negative
+CurrentCreditLines - negative
+InquiriesLast6Months - positive
+BankcardUtilization - flat within 1.0 and positive after 1.0
+DebtToIncomeRatio - positive
+StatedMonthlyIncome - overall negative
+MonthlyLoanPayment - overall negative
+
+However, not all the factors have the same strong relationships with delinquency
+ratio. Credit Score, Current Credit Lines, Inquries, Debt-to-Income Ratio have
+relatively stronger relationships with delinquency ratio. For borrower rate, 
+monthly income, and loan payment, since they are transferred to categorical 
+values, we can conclude there are some dividing lines to indicate the overall 
+positive/negative trend. BankcardUtilization, however, has most observations
+within 1.0, in which has a relatively flat relationship with loan delinquencies.
+
+In addtion to the linear relationship between individual variable and the loan
+delinquency ratio, we can also take inter-relationships between variables into
+consideration when creating a model. For example, when monthly income not 
+provided and credit score less than 600, people are likely to be default. Also, 
+people are likely to have credit score more than 590 with bank card usage less 
+than 0.5.
+
+Considering most dependable variables have zero values, this analysis uses the 
+transformed categorical value of "CurrentDelinquencies", rather than the 
+original numerical values in the dataset. So, the analysis cannot indicate how 
+many delinquencies a person may have. However, this could be a potential 
+exploration on this dataset in the future.
